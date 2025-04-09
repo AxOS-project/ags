@@ -5,6 +5,9 @@ on: [push, pull_request]
 jobs:
   lint:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ./src
     steps:
     - uses: actions/checkout@v4
     - name: lint and typecheck
