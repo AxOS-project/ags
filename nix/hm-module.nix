@@ -8,57 +8,20 @@ self: {
   inherit (lib.modules) mkIf;
   inherit (lib.options) mkOption mkEnableOption literalExpression;
 
+  defaultAgsPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
   cfg = config.programs.ags;
-  default = {
-    agsPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.default;
-    gtk3Package = self.packages.${pkgs.stdenv.hostPlatform.system}.astal3;
-    ioPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.io;
-    gjsPackage = self.packages.${pkgs.stdenv.hostPlatform.system}.gjs;
-  };
 in {
   options.programs.ags = {
     enable = mkEnableOption "ags";
 
     package = mkOption {
-      type = types.package;
-      default = default.agsPackage;
+      type = with types; nullOr package;
+      default = defaultAgsPackage;
       defaultText = literalExpression "inputs.ags.packages.${pkgs.stdenv.hostPlatform.system}.default";
       description = ''
         The Ags package to use.
 
         By default, this option will use the `packages.default` as exposed by this flake.
-      '';
-    };
-
-    astal.gtk3Package = mkOption {
-      type = types.package;
-      default = default.gtk3Package;
-      defaultText = literalExpression "inputs.ags.packages.${pkgs.stdenv.hostPlatform.system}.astal3";
-      description = ''
-        The GTK3 Astal package to use.
-
-        By default, this option will use the `packages.astal3` as exposed by this flake.
-      '';
-    };
-
-    astal.ioPackage = mkOption {
-      type = types.package;
-      default = default.ioPackage;
-      defaultText = literalExpression "inputs.ags.packages.${pkgs.stdenv.hostPlatform.system}.io";
-      description = ''
-        The core Astal package to use.
-
-        By default, this option will use the `packages.io` as exposed by this flake.
-      '';
-    };
-
-    astal.gjsPackage = mkOption {
-      type = types.package;
-      default = default.gjsPackage;
-      description = ''
-        The Astal Gjs package to use.
-
-        By default, this option will use the `packages.gjs` as exposed by this flake.
       '';
     };
 
@@ -89,6 +52,14 @@ in {
       example = literalExpression "[ pkgs.libsoup_3 ]";
     };
 
+    systemd.busName = mkOption {
+      type = types.str;
+      default = "ags";
+      description = ''
+        The bus name to use with the systemd service.
+      '';
+    };
+
     systemd.enable = mkOption {
       type = types.bool;
       default = false;
@@ -103,29 +74,28 @@ in {
     (mkIf (cfg.configDir != null) {
       xdg.configFile."ags".source = cfg.configDir;
     })
-    (let
+    (mkIf (cfg.package != null) (let
+      path = "/share/com.github.Aylur.ags/types";
       pkg = cfg.package.override {
         extraPackages = cfg.extraPackages;
-        astal3 = cfg.astal.gtk3Package;
-        astal-io = cfg.astal.ioPackage;
-        astal-gjs = "${config.home.homeDirectory}/.local/share/ags";
+        buildTypes = true;
       };
     in {
       programs.ags.finalPackage = pkg;
       home.packages = [pkg];
-      home.file.".local/share/ags".source = "${cfg.astal.gjsPackage}/share/astal/gjs";
-    })
+      home.file.".local/${path}".source = "${pkg}/${path}";
+    }))
     (mkIf cfg.systemd.enable {
       systemd.user.services.ags = {
         Unit = {
-          Description = "AGS - Tool for scaffolding Astal+TypeScript projects.";
+          Description = "AGS - A library built for GJS to allow defining GTK widgets in a declarative way.";
           Documentation = "https://github.com/Aylur/ags";
           PartOf = ["graphical-session.target"];
           After = ["graphical-session-pre.target"];
         };
 
         Service = {
-          ExecStart = "${cfg.finalPackage}/bin/ags run";
+          ExecStart = "${config.programs.ags.package}/bin/ags -b ${cfg.systemd.busName}";
           Restart = "on-failure";
           KillMode = "mixed";
         };

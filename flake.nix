@@ -1,81 +1,37 @@
 {
-  inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+  description = "A customizable and extensible shell";
 
-    astal = {
-      url = "github:aylur/astal";
-      inputs.nixpkgs.follows = "nixpkgs";
-    };
+  inputs = {
+    nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
+
+    # «https://github.com/nix-systems/nix-systems»
+    systems.url = "github:nix-systems/default-linux";
   };
 
   outputs = {
-    self,
     nixpkgs,
-    astal,
+    self,
+    systems,
   }: let
-    systems = ["x86_64-linux" "aarch64-linux"];
-    forAllSystems = nixpkgs.lib.genAttrs systems;
+    version = builtins.replaceStrings ["\n"] [""] (builtins.readFile ./version);
+    genSystems = nixpkgs.lib.genAttrs (import systems);
+    pkgs = genSystems (system: import nixpkgs {inherit system;});
   in {
-    lib.bundle = import ./nix/bundle.nix {
-      inherit self;
-      pkgs = nixpkgs.legacyPackages.x86_64-linux;
-    };
-
-    packages = forAllSystems (
-      system: let
-        inherit (astal.packages.${system}) astal3 astal4 io gjs;
-
-        pkgs = nixpkgs.legacyPackages.${system};
-        astal-io = io;
-        astal-gjs = "${gjs}/share/astal/gjs";
-
-        agsPackages = {
-          default = self.packages.${system}.ags;
-          ags = pkgs.callPackage ./nix {
-            inherit astal3 astal4 astal-io astal-gjs;
-          };
-          agsFull = pkgs.callPackage ./nix {
-            inherit astal3 astal4 astal-io astal-gjs;
-            extraPackages = builtins.attrValues (
-              builtins.removeAttrs astal.packages.${system} ["docs"]
-            );
-          };
-        };
-      in
-        astal.packages.${system} // agsPackages
-    );
-
-    templates.default = {
-      path = ./nix/template;
-      description = "Example flake.nix that shows how to package a project.";
-      welcomeText = ''
-        # Getting Started
-        - run `nix develop` to enter the development environment
-        - run `ags init -d . -f` to setup an initial ags project
-        - run `ags run .`   to run the project
-      '';
-    };
+    packages = genSystems (system: let
+      inherit (pkgs.${system}) callPackage;
+    in {
+      default = callPackage ./nix {inherit version;};
+      ags = self.packages.${system}.default;
+      agsWithTypes = self.packages.${system}.default; # for backwards compatibility
+      agsNoTypes = callPackage ./nix {
+        inherit version;
+        buildTypes = false;
+      };
+    });
 
     homeManagerModules = {
       default = self.homeManagerModules.ags;
       ags = import ./nix/hm-module.nix self;
     };
-
-    devShells = forAllSystems (system: let
-      pkgs = nixpkgs.legacyPackages.${system};
-    in {
-      default = pkgs.mkShell {
-        packages = with pkgs; [
-          markdownlint-cli2
-          marksman
-          vtsls
-          vscode-langservers-extracted
-          go
-          gopls
-          gotools
-          go-tools
-        ];
-      };
-    });
   };
 }
