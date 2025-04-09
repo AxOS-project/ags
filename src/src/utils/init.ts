@@ -3,6 +3,7 @@ import GLib from 'gi://GLib';
 import { ensureDirectory } from './etc.js';
 import { readFile, writeFile } from './file.js';
 import { exec } from './exec.js';
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 import { HOME } from '../utils.js';
 
 export function isRunning(dbusName: string, bus: 'session' | 'system') {
@@ -86,19 +87,6 @@ const defaultTsConfig = {
     },
 };
 
-const nixPaths = [
-    `${HOME}/.local`,
-    `${HOME}/.nix-profile`,
-    `${HOME}/.local/state/nix/profiles/home-manager`,
-    '/run/current-system/sw',
-].map(path => `${path}/share/${pkg.name}/types`);
-
-const nixWarning = `nix users!
-if ags was installed with nix there is no guarantee
-that the types directory got symlinked correctly
-and there is no guarante the symlink won't break on updates
-if it was symlinked to /nix/store you need to run --init on updates`;
-
 const tsconfigWarning = `existing tsconfig detected
 make sure it has "typeRoots": ["./types"]`;
 
@@ -126,16 +114,7 @@ export async function init(configDir: string, entry: string) {
         }
     }
 
-    const linkStore = GLib.getenv('AGS_LINK_NIX_STORE');
-    const nixPath = linkStore ? '' : nixPaths.find(path => {
-        if (GLib.file_test(path, GLib.FileTest.EXISTS))
-            return true;
-    });
-
-    const types = nixPath || `${pkg.pkgdatadir}/types`;
-
-    if (exec('which nix'))
-        console.warn(nixWarning);
+    const types = `${pkg.pkgdatadir}/types`;
 
     exec(`ln -s -f ${types} ${configDir}/types`);
     await writeFile(readMe(types), `${configDir}/README.md`);

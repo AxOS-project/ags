@@ -1,38 +1,50 @@
-# typescript
-tsc = find_program('tsc', required: true)
-tsc_out = meson.project_build_root() / 'tsc-out'
-typescript = custom_target(
-  'typescript-compile',
-  input: files( 'main.ts' ),
-  build_by_default: true,
-  build_always_stale: true,
-  command: [ tsc, '--outDir', tsc_out ],
-  output: ['tsc-output'],
+project('ags', 'c',
+          version: run_command('cat', join_paths(meson.project_source_root(), 'version')).stdout().strip(),
+    meson_version: '>= 0.62.0',
+    	  license: ['GPL-3.0-or-later'],
+  default_options: [ 'warning_level=2', 'werror=false', ],
 )
 
-# launcher binary
-configure_file(
-  input : app_id + '.js.in',
-  output : app_id,
-  configuration: {
-    'GJS': find_program('gjs').full_path(),
-    'APP_ID': app_id,
-    'PACKAGE_VERSION': meson.project_version(),
-    'PREFIX': prefix,
-    'LIBDIR': libdir,
-    'RESOURCE_PATH': '/com/github/Aylur/ags',
-  },
-  install: true,
-  install_dir: pkgdatadir
+app_id = 'com.github.Aylur.ags'
+prefix = get_option('prefix')
+libdir = join_paths(prefix, get_option('libdir'))
+extensiondir = join_paths(libdir, meson.project_name())
+datadir = join_paths(prefix, get_option('datadir'))
+pkgdatadir = join_paths(datadir, app_id)
+bindir = join_paths(prefix, get_option('bindir'))
+
+dependency('glib-2.0')
+dependency('gobject-introspection-1.0', version: '>= 1.49.1')
+dependency('gio-2.0', version: '>= 2.56.0')
+dependency('gjs-1.0', version: '>= 1.73.1')
+dependency('gtk+-3.0', version: '>= 3.0')
+
+subproject('gvc',
+  default_options: [
+    'package_name=' + app_id,
+    'pkgdatadir=' + pkgdatadir,
+    'pkglibdir=' + libdir,
+    'static=false',
+    'introspection=true',
+    'alsa=false'
+  ]
 )
 
-# gresource
-import('gnome').compile_resources(
-  app_id + '.src',
-  app_id + '.src.gresource.xml',
-  dependencies: typescript,
-  source_dir: tsc_out,
-  gresource_bundle: true,
-  install: true,
-  install_dir : pkgdatadir
+subproject('gutils',
+  default_options: [
+    'pkgdatadir=' + pkgdatadir,
+    'pkglibdir=' + libdir,
+  ]
+)
+
+subdir('src')
+
+meson.add_install_script(
+  'post_install.sh',
+  datadir,
+  pkgdatadir,
+  bindir,
+  app_id,
+  get_option('build_types').to_string(),
+  meson.project_source_root()
 )

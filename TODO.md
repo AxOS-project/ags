@@ -19,10 +19,6 @@
   - [ ] Gtk.Fixed
   - [ ] Gtk.Grid
 
-- Nix
-  - [ ] NixOS module
-  - [x] binary cache [#212](https://github.com/Aylur/ags/pull/212)
-
 - package generated types and @gir types
   - [ ] ~~github action to package types~~
   - [x] install them at ~~/etc/ags~~ pkgdatadir/share with meson
