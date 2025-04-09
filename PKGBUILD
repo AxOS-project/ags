@@ -27,7 +27,7 @@ prepare() {
 build() {
   cd $srcdir
   npm install
-  arch-meson build --libdir "lib/$_pkgname" -Dbuild_types=true
+  arch-meson build --libdir "lib/$pkgname" -Dbuild_types=true
   meson compile -C build
 }
 
